@@ -1,0 +1,70 @@
+version: 2
+
+models:
+  - name: int_world_bank_observations
+    description: >
+      Uma linha por observação do World Bank (entidade + indicador + ano), por run.
+      Resultado de explodir o array `records` de stg_world_bank__pages.
+      Mantém todos os runs: a escolha do snapshot vigente acontece na Silver.
+    columns:
+      - name: run_id
+        description: "UUID do run de ingestão que trouxe a observação."
+        data_tests:
+          - not_null
+      - name: indicator_id
+        description: "Código do indicador (vindo da página)."
+        data_tests:
+          - not_null
+      - name: record_indicator_id
+        description: "Código do indicador segundo o próprio registro."
+      - name: entity_wb_id
+        description: "Código de 2 caracteres da entidade no World Bank (ex.: BR, XD). Chave para o cadastro."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('int_world_bank_entities')
+                field: wb_iso2_code
+      - name: api_iso3_code
+        description: "countryiso3code bruto da API. Vazio (NULL) para grupos de renda; não usar como chave."
+      - name: entity_name
+        description: "Nome da entidade retornado pela API."
+      - name: year
+        description: "Ano de referência. NULL se a API usar outro formato de período."
+        data_tests:
+          - not_null
+      - name: indicator_value
+        description: "Valor medido. NULL quando não houve observação no ano (nunca zero)."
+      - name: position_in_page
+        description: "Posição do registro dentro da página (1 = primeiro)."
+
+  - name: int_world_bank_entities
+    description: >
+      Cadastro de entidades do World Bank (países e agregados), do snapshot mais
+      recente do dataset `countries`. Uma linha por entidade. A classificação
+      (COUNTRY, REGION, INCOME_GROUP, LENDING_GROUP, OTHER_AGGREGATE) é derivada
+      do próprio cadastro: um agregado recebe o tipo do papel em que os países o citam.
+    columns:
+      - name: entity_code
+        description: "Código da entidade no World Bank (ex.: BRA, HIC, EAS)."
+        data_tests:
+          - unique
+          - not_null
+      - name: wb_iso2_code
+        description: "Código de 2 caracteres usado nas observações (country.id)."
+        data_tests:
+          - unique
+          - not_null
+      - name: entity_name
+        description: "Nome oficial da entidade."
+        data_tests:
+          - not_null
+      - name: entity_type
+        description: "Classificação da entidade."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["COUNTRY", "REGION", "INCOME_GROUP", "LENDING_GROUP", "OTHER_AGGREGATE"]
+      - name: iso3_code
+        description: "Código ISO-3, preenchido só para países."

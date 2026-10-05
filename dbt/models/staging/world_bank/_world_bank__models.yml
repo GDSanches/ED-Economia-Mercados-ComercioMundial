@@ -1,0 +1,45 @@
+version: 2
+
+models:
+  - name: stg_world_bank__pages
+    description: >
+      Páginas da API do World Bank com o cabeçalho do JSON extraído em colunas
+      tipadas. Uma linha por página, por run. Os registros continuam agrupados
+      em `records` (JSONB) e serão explodidos na camada Silver.
+    columns:
+      - name: run_id
+        description: "UUID do run de ingestão."
+        data_tests:
+          - not_null
+      - name: dataset
+        description: "Nome interno do indicador."
+        data_tests:
+          - not_null
+      - name: indicator_id
+        description: "Código do indicador no World Bank. NULL no cadastro de entidades (dataset countries)."
+        data_tests:
+          - not_null:
+              config:
+                where: "dataset <> 'countries'"
+      - name: page_number
+        description: "Página segundo o manifest."
+        data_tests:
+          - not_null
+      - name: api_page
+        description: "Página segundo o cabeçalho da API. Deve ser igual a page_number."
+      - name: api_pages
+        description: "Total de páginas segundo a API. Deve ser igual a pages_expected."
+      - name: api_per_page
+        description: "Tamanho de página usado na requisição."
+      - name: api_total_records
+        description: "Total de registros do indicador informado pela API (somando todas as páginas)."
+      - name: api_last_updated_on
+        description: "Data em que o World Bank atualizou o indicador pela última vez."
+      - name: records
+        description: "Lista de registros da página (JSONB). Lista vazia quando a API devolve null."
+        data_tests:
+          - not_null
+      - name: records_count
+        description: "Quantidade de registros nesta página."
+        data_tests:
+          - not_null

@@ -1,0 +1,70 @@
+version: 2
+
+models:
+  - name: world_bank_indicators
+    description: >
+      Indicadores econômicos do World Bank no contrato da camada Silver.
+      Uma linha por entidade + indicador + ano, sempre do run completo mais
+      recente de cada indicador.
+    config:
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        columns: [entity_code, indicator_id, year]
+      - type: check
+        expression: >
+          (entity_type = 'COUNTRY' and iso3_code is not null)
+          or (entity_type <> 'COUNTRY' and iso3_code is null)
+
+    columns:
+      - name: entity_code
+        description: "Código da entidade no World Bank (ex.: BRA, ARB)."
+        data_type: varchar(10)
+        constraints:
+          - type: not_null
+      - name: entity_name
+        description: "Nome oficial da entidade retornado pela API."
+        data_type: varchar(255)
+        constraints:
+          - type: not_null
+      - name: entity_type
+        description: "Classificação da entidade (COUNTRY, REGION, ...)."
+        data_type: varchar(50)
+        constraints:
+          - type: not_null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["COUNTRY", "REGION", "INCOME_GROUP", "LENDING_GROUP", "OTHER_AGGREGATE"]
+      - name: iso3_code
+        description: "Código ISO-3 real. Preenchido só para países."
+        data_type: varchar(3)
+      - name: indicator_id
+        description: "Código do indicador no World Bank (ex.: NY.GDP.MKTP.CD)."
+        data_type: varchar(50)
+        constraints:
+          - type: not_null
+      - name: year
+        description: "Ano de referência da medição."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: indicator_value
+        description: "Valor medido. NULL (e não 0) em anos sem reporte."
+        data_type: numeric(38, 15)
+      - name: _run_id
+        description: "UUID do run de ingestão que gerou esta linha."
+        data_type: varchar(36)
+        constraints:
+          - type: not_null
+      - name: _extracted_at
+        description: "Momento exato da extração da API."
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
+      - name: _source_url
+        description: "URL exata da API (com paginação) que forneceu o dado."
+        data_type: text
+        constraints:
+          - type: not_null

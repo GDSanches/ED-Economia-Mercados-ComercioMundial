@@ -1,0 +1,21 @@
+name: gedp
+version: "1.0.0"
+profile: gedp
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+snapshot-paths: ["snapshots"]
+analysis-paths: ["analyses"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  gedp:
+    +materialized: view
+    silver:
+      +schema: silver
+      +materialized: table

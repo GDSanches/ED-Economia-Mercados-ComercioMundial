@@ -1,0 +1,36 @@
+# ===== Segredos =====
+# Variáveis de ambiente reais (senhas). Só o exemplo vai para o repositório.
+.env
+.env.*
+!.env.exemplo
+
+# ===== Python =====
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ===== dbt =====
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+dbt/.user.yml
+
+# ===== Dados locais =====
+# Dados brutos vivem no MinIO; o repositório guarda código, não dados.
+data/
+
+# ===== Logs =====
+*.log
+
+# ===== Sistema operacional / editores =====
+Thumbs.db
+desktop.ini
+.DS_Store
+.idea/

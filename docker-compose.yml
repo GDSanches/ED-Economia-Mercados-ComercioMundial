@@ -1,0 +1,90 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      TZ: America/Sao_Paulo
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # Volume nomeado: os dados sobrevivem a restart, stop e "docker compose down"
+      - postgres_data:/var/lib/postgresql/data
+      # Opcional: scripts .sql/.sh executados apenas na PRIMEIRA inicialização
+      # - ./init:/docker-entrypoint-initdb.d:ro
+    # Healthy = aceita conexão TCP (como um cliente externo) E executa uma query.
+    # Usar -h 127.0.0.1 é essencial: na 1ª inicialização o entrypoint sobe um
+    # Postgres temporário só no socket local para rodar os scripts de init;
+    # sem o -h o check passaria nessa fase, antes do servidor definitivo.
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          pg_isready -h 127.0.0.1 -p 5432 -U $${POSTGRES_USER} -d $${POSTGRES_DB} &&
+          PGPASSWORD=$${POSTGRES_PASSWORD} psql -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB} -tAc 'SELECT 1' | grep -q 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 2s
+
+  # ---------------------------------------------------------------
+  # Armazenamento de objetos (Data Lake) - compatível com MinIO/S3
+  # Imagem: Silo, fork comunitário mantido do MinIO (a imagem oficial
+  # minio/minio deixou de ser publicada).
+  # ---------------------------------------------------------------
+  minio:
+    image: pgsty/silo:latest
+    container_name: minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      TZ: America/Sao_Paulo
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"      # API S3 (usada por Python, Spark, etc.)
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"  # Console web
+    volumes:
+      # Volume nomeado: buckets e objetos sobrevivem a restart e "down"
+      - minio_data:/data
+    # /minio/health/live  -> só diz que o processo está de pé.
+    # /minio/health/ready -> diz que o servidor está pronto para atender
+    #                        leituras/escritas (é o que importa para orquestração).
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+      start_interval: 2s
+
+  # Container de inicialização: cria os buckets e encerra.
+  # Só roda depois que o MinIO estiver saudável; é idempotente.
+  minio-init:
+    image: pgsty/silo:latest
+    container_name: minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    entrypoint: >
+      /bin/sh -c "
+      mcli alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
+      mcli mb --ignore-existing local/bronze &&
+      mcli ls local
+      "
+
+volumes:
+  postgres_data:
+    name: postgres_data
+  minio_data:
+    name: minio_data
