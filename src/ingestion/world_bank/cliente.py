@@ -8,7 +8,8 @@ BASE_URL = "https://api.worldbank.org/v2"
 
 # A API do World Bank tem lentidões e erros 5xx momentâneos. Com o escopo global
 # (~18 páginas por indicador), uma falha isolada derrubaria o run inteiro.
-# Retry repete a requisição com espera crescente (2s, 4s, 8s, 16s, 32s).
+# Retry repete a requisição até 5 vezes com espera crescente entre as tentativas:
+# 0s, 4s, 8s, 16s, 32s (o urllib3 não espera antes da primeira repetição).
 RETRY = Retry(
     total=5,
     connect=5,

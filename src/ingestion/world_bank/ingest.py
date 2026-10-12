@@ -20,7 +20,7 @@ def upload_manifest(storage, key: str, manifest: dict) -> None:
 	)
 
 
-def ingest_dataset(dataset: DatasetConfig, storage) -> None:
+def ingest_dataset(dataset: DatasetConfig, storage) -> str:
 	ingestion_time = datetime.now(timezone.utc)
 	run_id = str(uuid4())
 
@@ -107,6 +107,8 @@ def ingest_dataset(dataset: DatasetConfig, storage) -> None:
 
 	print(f"Dataset {dataset.name} salvo em s3://{BUCKET}/{run_prefix}/")
 	print(f"Páginas salvas: {manifest['pages_saved']}")
+	return run_id
+
 
 
 def parse_args():

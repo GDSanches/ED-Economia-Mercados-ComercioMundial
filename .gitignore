@@ -34,3 +34,6 @@ Thumbs.db
 desktop.ini
 .DS_Store
 .idea/
+
+
+airflow/logs/
