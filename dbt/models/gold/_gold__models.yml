@@ -1,0 +1,73 @@
+version: 2
+
+models:
+  - name: mart_economic_overview
+    description: >
+      Perfil econômico por entidade (país ou agregado) e ano: os 8 indicadores
+      macroeconômicos da Silver em formato largo, uma coluna por indicador.
+      Entidade/ano sem nenhum indicador fica de fora. Contrato e decisões em
+      docs/data-contracts/gold-economic-overview.md.
+    config:
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        columns: [entity_code, year]
+      - type: check
+        expression: >
+          (entity_type = 'COUNTRY' and iso3_code is not null)
+          or (entity_type <> 'COUNTRY' and iso3_code is null)
+
+    columns:
+      - name: entity_code
+        description: "Código da entidade no World Bank (ex.: BRA, HIC, EAS)."
+        data_type: varchar(10)
+        constraints:
+          - type: not_null
+      - name: entity_name
+        description: "Nome oficial da entidade."
+        data_type: varchar(255)
+        constraints:
+          - type: not_null
+      - name: entity_type
+        description: "COUNTRY, REGION, INCOME_GROUP, LENDING_GROUP ou OTHER_AGGREGATE."
+        data_type: varchar(50)
+        constraints:
+          - type: not_null
+      - name: iso3_code
+        description: "Código ISO-3, preenchido só para países."
+        data_type: varchar(3)
+      - name: year
+        description: "Ano de referência."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: gdp_current_usd
+        description: "PIB em US$ correntes (NY.GDP.MKTP.CD)."
+        data_type: numeric(20, 2)
+      - name: gdp_per_capita_current_usd
+        description: "PIB per capita em US$ correntes (NY.GDP.PCAP.CD)."
+        data_type: numeric(12, 2)
+      - name: gdp_growth_annual_pct
+        description: "Crescimento anual do PIB, a preços constantes, em pontos percentuais (NY.GDP.MKTP.KD.ZG)."
+        data_type: numeric(9, 4)
+      - name: inflation_cpi_annual_pct
+        description: "Inflação anual pelo índice de preços ao consumidor, em pontos percentuais (FP.CPI.TOTL.ZG)."
+        data_type: numeric(12, 4)
+      - name: unemployment_pct_labor_force
+        description: "Desemprego em % da força de trabalho, estimativa modelada da OIT (SL.UEM.TOTL.ZS)."
+        data_type: numeric(7, 4)
+      - name: exports_pct_gdp
+        description: "Exportações de bens e serviços em % do PIB (NE.EXP.GNFS.ZS)."
+        data_type: numeric(9, 4)
+      - name: imports_pct_gdp
+        description: "Importações de bens e serviços em % do PIB (NE.IMP.GNFS.ZS)."
+        data_type: numeric(9, 4)
+      - name: gni_per_capita_atlas_usd
+        description: "RNB per capita em US$ correntes, método Atlas (NY.GNP.PCAP.CD)."
+        data_type: numeric(12, 2)
+      - name: _oldest_extracted_at
+        description: "Extração mais antiga entre os indicadores da linha (pior caso de atualização)."
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null

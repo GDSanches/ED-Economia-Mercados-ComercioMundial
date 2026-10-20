@@ -24,6 +24,8 @@ x-airflow-common: &airflow-common
     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     POSTGRES_DB: ${POSTGRES_DB}
     # --- dbt: projeto montado somente leitura; artefatos vão para /tmp ---
+    # Usadas em comandos manuais (ex.: docker compose exec airflow-scheduler .../dbt debug).
+    # A task dbt_build da DAG passa os caminhos explicitamente e não depende delas.
     DBT_PROJECT_DIR: /opt/airflow/project/dbt
     DBT_PROFILES_DIR: /opt/airflow/project/dbt
     DBT_TARGET_PATH: /tmp/dbt/target
@@ -34,6 +36,7 @@ x-airflow-common: &airflow-common
     - ./airflow/logs:/opt/airflow/logs
     - ./airflow/plugins:/opt/airflow/plugins
     - ./src:/opt/airflow/project/src:ro
+    - ./sql:/opt/airflow/project/sql:ro       # migrations do raw_staging (ensure_schema)
     - ./dbt:/opt/airflow/project/dbt:ro
 
 

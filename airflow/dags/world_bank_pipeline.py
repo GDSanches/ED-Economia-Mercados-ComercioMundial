@@ -1,7 +1,11 @@
 """Pipeline do World Bank orquestrado pelo Airflow.
 
-Etapa atual: ingest_world_bank (API do World Bank → MinIO/Bronze).
-A lógica da ingestão continua em src/; esta DAG só decide quando e como chamá-la.
+    ingest_world_bank (×9, mapeada)  →  load_raw_staging  →  dbt_build  →  check_ingestion_results
+    API → MinIO (Bronze)                MinIO → Postgres     raw_staging     falha a execução se
+                                                             → Silver        alguma ingestão falhou
+
+A lógica continua em src/ e dbt/; esta DAG só decide quando, em que ordem
+e o que fazer quando algo falha.
 """
 
 from datetime import datetime, timedelta
@@ -9,6 +13,14 @@ from datetime import datetime, timedelta
 from airflow.sdk import dag, get_current_context, task
 
 from src.ingestion.world_bank.config import DATASETS
+
+# Caminhos dentro do container (ver volumes e Dockerfile em airflow/).
+DBT_BIN = "/opt/airflow/dbt-venv/bin/dbt"
+DBT_PROJECT_DIR = "/opt/airflow/project/dbt"
+DBT_ARTIFACTS_DIR = "/tmp/dbt"
+
+# Ordem da lista = map_index de ingest_world_bank (0 = countries, 1 = gdp, ...).
+DATASET_NAMES = [d.name for d in DATASETS]
 
 
 @dag(
@@ -43,7 +55,7 @@ def world_bank_pipeline():
 
     @task(
         # Roda mesmo se algum dataset falhou na ingestão: os que completaram são
-        # carregados. A DAG run continua marcada como falha, então o erro não some.
+        # carregados. Quem marca a execução como falha é check_ingestion_results.
         trigger_rule="all_done",
         execution_timeout=timedelta(minutes=30),
     )
@@ -67,9 +79,47 @@ def world_bank_pipeline():
         execution_timeout=timedelta(minutes=30),
     )
     def dbt_build() -> str:
-        # Pastas do projeto e de saída vêm das variáveis DBT_* do docker-compose.
-        return "/opt/airflow/dbt-venv/bin/dbt build"
+        # O BashOperator executa num diretório temporário, então todos os caminhos são
+        # explícitos: o comando não depende do diretório atual nem de variáveis DBT_*.
+        # O projeto é montado somente leitura; os artefatos do dbt vão para /tmp.
+        return (
+            f"{DBT_BIN} build"
+            f" --project-dir {DBT_PROJECT_DIR}"
+            f" --profiles-dir {DBT_PROJECT_DIR}"
+            f" --target-path {DBT_ARTIFACTS_DIR}/target"
+            f" --log-path {DBT_ARTIFACTS_DIR}/logs"
+        )
 
-    ingested = ingest_world_bank.expand(dataset_name=[d.name for d in DATASETS])
-    ingested >> load_raw_staging() >> dbt_build()
+    @task(
+        # O Airflow decide o resultado da execução pelas tasks terminais. Com load_raw_staging
+        # em all_done, uma ingestão falha não chega a dbt_build, e a execução ficaria verde.
+        # Esta task é a terminal que olha para todas as ingestões e falha se alguma falhou.
+        trigger_rule="all_done",
+        retries=0,
+    )
+    def check_ingestion_results() -> None:
+        context = get_current_context()
+        # No Airflow 3 as tasks não acessam o banco de metadados; get_task_states pergunta
+        # ao api-server. Retorno: {run_id: {"ingest_world_bank_<map_index>": estado}}.
+        states = context["ti"].get_task_states(
+            dag_id=context["dag"].dag_id,
+            task_ids=["ingest_world_bank"],
+            run_ids=[context["run_id"]],
+        )[context["run_id"]]
+
+        failed = sorted(
+            DATASET_NAMES[int(key.rsplit("_", 1)[1])]
+            for key, state in states.items()
+            if state != "success"
+        )
+        if failed:
+            raise RuntimeError(f"Ingestão falhou para: {', '.join(failed)}")
+
+        print(f"Todas as {len(states)} ingestões concluídas com sucesso.")
+
+    ingested = ingest_world_bank.expand(dataset_name=DATASET_NAMES)
+    built = ingested >> load_raw_staging() >> dbt_build()
+    [ingested, built] >> check_ingestion_results()
+
+
 world_bank_pipeline()

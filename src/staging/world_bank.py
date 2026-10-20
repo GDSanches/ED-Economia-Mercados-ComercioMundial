@@ -140,9 +140,15 @@ def build_row(manifest: dict, page_number: int, pages_expected: int,
 
 def ensure_schema(conn) -> None:
     # Aplica as migrations em ordem (001, 002, ...). Cada arquivo pode rodar mais de uma vez.
+    migrations = sorted(SQL_DIR.glob("*.sql"))
+    # Sem migrations, o schema não é garantido: falhar aqui, com o caminho procurado,
+    # em vez de seguir e quebrar depois no INSERT com "relation does not exist".
+    if not migrations:
+        raise FileNotFoundError(f"Nenhuma migration .sql encontrada em {SQL_DIR}")
+
     with conn:
         with conn.cursor() as cur:
-            for sql_file in sorted(SQL_DIR.glob("*.sql")):
+            for sql_file in migrations:
                 cur.execute(sql_file.read_text(encoding="utf-8"))
 
 
